@@ -1,0 +1,10 @@
+[Unit]
+Description=Scan and convert DJI live photos every 90 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=90min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

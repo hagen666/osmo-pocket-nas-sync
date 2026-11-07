@@ -1,0 +1,2 @@
+# 大疆 Osmo Pocket 4 插入后自动备份（vendor 2ca3 = DJI）
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2ca3", TAG+="systemd", ENV{SYSTEMD_WANTS}="dji-import.service"

@@ -1,0 +1,10 @@
+[Unit]
+Description=DJI live photo conversion scan
+After=remote-fs.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dji-livephoto-convert.sh --all
+Nice=15
+IOSchedulingClass=idle

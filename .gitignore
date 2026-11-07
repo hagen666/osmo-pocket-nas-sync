@@ -1,0 +1,26 @@
+# 日志
+*.log
+/var/log/
+
+# 配置（含凭据）
+config/config
+*.cred
+
+# 清单与备份
+.dji-manifest.tsv*
+manifest-backups/
+*.bak
+
+# 临时文件
+*.tmp
+*.swp
+/tmp/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 生成物
+out/
+*.pyc
+__pycache__/

@@ -1,0 +1,47 @@
+# ============================================================
+# osmo-pocket-nas-sync 配置文件
+# 安装位置: /etc/dji-import/config
+# 权限建议: chmod 600（含 NAS 凭据路径）
+# ============================================================
+
+# ===== 路径 =====
+# 相机 udisks 自动挂载点（一般不用改）
+CAM_MOUNT="/media/$USER/Pocket4"
+
+# NAS 挂载点（成品区：只放转换后的结果）
+NAS_MOUNT="/mnt/pocket4"
+
+# NAS 挂载点（归档区：存放已转换的原片）
+RAW_DIR="/mnt/pocket4_raw"
+
+# ===== 备份时机 =====
+WAIT_MOUNT_MAX=90        # 等相机挂载，最多多少秒
+SLEEP_AFTER_BACKUP=10    # 备份完成后等多久再提示卸载
+SLEEP_BEFORE_UMOUNT=15   # 提示卸载后等多久真正卸载
+AUTO_EJECT=1             # 1=自动卸载  0=只备份不卸载
+
+# ===== 实况照片转换 =====
+AUTO_CONVERT=1                  # 1=卸载后自动后台转换
+LIVEPHOTO_MIN_DUR=2.5           # 判定为实况的最短时长（秒）
+LIVEPHOTO_MAX_DUR=4.0           # 判定为实况的最长时长（秒）
+LIVEPHOTO_REQUIRE_NO_LENSTAG=1  # 1=必须无 DjiCameraLensType 标记（推荐）
+LIVEPHOTO_COVER_W=3840          # 封面宽度
+LIVEPHOTO_COVER_H=2160          # 封面高度
+LIVEPHOTO_JPEG_Q=1              # JPEG 质量（1=最好，31=最差）
+LIVEPHOTO_KEYFRAME_TS=0.3       # 从第几秒取封面
+LIVEPHOTO_TS_US=300000          # MotionPhoto 时间戳（微秒）
+
+# ===== Home Assistant 播报（可选）=====
+# 留空则完全不播报，不影响备份功能
+# 示例: HA_URL="http://192.168.1.100:8123"
+HA_URL=""
+
+# 令牌文件路径（内容为 HA 长期访问令牌）
+TOKEN_FILE="/etc/dji-import/ha_token"
+
+# 播报目标实体（小爱音箱/面板）
+# 示例: NOTIFY_ENTITY="notify.xiaomi_cn_XXXXXXXX_x8f_play_text_a_7_3"
+NOTIFY_ENTITY=""
+
+# ===== 调试 =====
+SKIP_MOUNT_CHECK=0       # 1=跳过 NAS 挂载检查（只在测试时用）

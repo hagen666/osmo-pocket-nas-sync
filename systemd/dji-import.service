@@ -1,0 +1,16 @@
+[Unit]
+Description=DJI Pocket 4 auto import and safe eject
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/pocket4
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dji-import.sh
+TimeoutStartSec=45min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+
+[Install]
+WantedBy=multi-user.target
