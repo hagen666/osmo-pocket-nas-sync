@@ -16,6 +16,9 @@ A set of self-hosted scripts that solve three very concrete problems:
 
 Built with plain `bash` + `ffmpeg` + `exiftool` + `udev` + `systemd`. **No server-side service, no app required.**
 
+**Tested with**: Ubuntu 24.04 host + **UGREEN DH4300 Plus** (UGOS Pro) + Osmo Pocket 4.
+Live-photo rendering depends on your NAS gallery — see [Viewing live photos in your NAS gallery](#viewing-live-photos-in-your-nas-gallery).
+
 ---
 
 ## Features
@@ -93,7 +96,9 @@ After backup + conversion:
 
 - **Linux** (tested on Ubuntu 24.04 / Linux Mint 22)
 - Camera: **DJI Osmo Pocket 4** (`idVendor=2ca3`; other DJI cameras likely work)
-- NAS: anything supporting **SMB/CIFS** (Synology, UGREEN, QNAP…)
+- NAS: anything supporting **SMB/CIFS**
+  - **This implementation was built and tested on a UGREEN DH4300 Plus (UGOS Pro)**
+  - Synology / QNAP / others should work for the backup, but live-photo rendering depends on each NAS's gallery — see "NAS gallery compatibility"
 - Deps: `ffmpeg`, `ffprobe`, `exiftool`, `curl`, `cifs-utils`
 
 ```bash
@@ -165,6 +170,51 @@ sudo nano /etc/dji-import/config
 ```bash
 sudo dji-check
 ```
+
+---
+
+## Viewing live photos in your NAS gallery
+
+### ⚠️ This matters: whether you can play them depends heavily on the NAS brand
+
+The output is a **single-file Motion Photo**. Whether your NAS gallery renders it as a
+live photo (long-press to play) depends entirely on **whether its gallery supports this format**.
+
+| NAS / OS | Live photo support | Notes |
+|---|---|---|
+| **UGREEN UGOS Pro** | ✅ **Yes** | Our test environment (DH4300 Plus); vendor documents "Android live photo" support |
+| Synology DSM | ⚠️ Verify | Synology handles iPhone JPG+MOV pairs; single-file Motion Photo untested |
+| QNAP QTS | ⚠️ Verify | Untested |
+
+> 💡 Recommendation: **test with a single converted file first** before batch-converting your library.
+
+### UGREEN NAS steps
+
+Converted files land in `/mnt/pocket4/` (the `pocket4` share on the NAS).
+But **the gallery does not scan shared folders by default** — you must add it:
+
+```
+1. Open UGREEN NAS app → Photos
+2. Go to Photos settings → Shared folders (or "Add folder to library")
+3. Check the `pocket4` shared folder
+4. Wait for the gallery to finish scanning/indexing
+5. Back in the timeline → 3-second clips appear as live photos
+   (long-press to play the motion)
+```
+
+**Result**:
+- ✅ Live photos appear in the photo timeline by capture time
+- ✅ Long-press plays the motion
+- ✅ Behave like normal photos (view, share, upload)
+
+> After this step, those 3-second clips show up as *photos*, not videos.
+
+### If your NAS gallery doesn't support it
+
+The single-file Motion Photo is also recognized by **Android** phone galleries.
+If your NAS gallery can't render it, you can sync the files to an Android phone instead.
+
+**Note**: this format is **not recognized by iOS Photos** (iOS uses a JPG+MOV pair).
 
 ---
 
@@ -253,7 +303,8 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 ## Known limitations
 
 1. **Only tested with Osmo Pocket 4** — other DJI cameras likely work (`idVendor=2ca3`) but the live-photo heuristic may need tuning
-2. **Output is single-file Motion Photo** — Android/UGREEN galleries recognize it; **iOS Photos does not** (iOS uses a JPG+MOV pair)
+2. **Output is single-file Motion Photo** — Android / UGREEN UGOS Pro galleries recognize it; **iOS Photos does not** (iOS uses a JPG+MOV pair)
+   - Support on other NAS brands is unverified — see "NAS gallery compatibility"
 3. **Requires SMB** — NFS untested
 4. **Cover frame is lossy** — video is lossless; the cover is one JPEG encode at q=1
 
