@@ -8,14 +8,14 @@
 set -u
 
 # ============ 默认配置（可被 /etc/dji-import/config 覆盖）============
-CAM_MOUNT="${CAM_MOUNT:-/media/$USER/Pocket4}"   # udisks 自动挂载点（默认当前用户）
+CAM_MOUNT="/media/openclaw/Pocket4"          # udisks 自动挂载点
 NAS_MOUNT="/mnt/pocket4"                     # 成品区（只放结果）
 RAW_DIR="/mnt/pocket4_raw"                   # 原始归档区（转换后的原片）
 MANIFEST="$NAS_MOUNT/.dji-manifest.tsv"      # 去重清单（v2: 4 列）
 LOG="/var/log/dji-import.log"
-HA_URL="${HA_URL:-}"                       # 例: http://192.168.1.100:8123（留空=不播报）
+HA_URL="http://192.168.3.86:8123"
 TOKEN_FILE="/etc/dji-import/ha_token"
-NOTIFY_ENTITY="${NOTIFY_ENTITY:-}"         # 例: notify.xiaomi_cn_XXXX_x8f_play_text_a_7_3（留空=不播报）
+NOTIFY_ENTITY="notify.xiaomi_cn_1108968554_x8f_play_text_a_7_3"
 LOCK="${DJI_IMPORT_LOCK:-/var/lock/dji-import.lock}"
 
 WAIT_MOUNT_MAX=90        # 等相机挂载，最多多少秒
@@ -27,18 +27,11 @@ SKIP_MOUNT_CHECK=0       # 调试用：1=跳过 NAS 挂载检查（正常生产�
 CONF="${DJI_IMPORT_CONF:-/etc/dji-import/config}"
 [ -f "$CONF" ] && . "$CONF"
 
-# 配置可能改了 NAS_MOUNT，依赖它的路径要重新算
-MANIFEST="$NAS_MOUNT/.dji-manifest.tsv"
-
 # ============ 工具函数 ============
 log() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 
 say() {
   local msg="$1"
-  # 未配置 HA 播报 → 静默跳过（开源版默认不播报）
-  if [ -z "${HA_URL:-}" ] || [ -z "${NOTIFY_ENTITY:-}" ]; then
-    log "未配置播报(HA_URL/NOTIFY_ENTITY)，跳过: $msg"; return 0
-  fi
   if [ ! -s "$TOKEN_FILE" ]; then log "无令牌，跳过播报: $msg"; return 0; fi
   local tk; tk=$(cat "$TOKEN_FILE")
   local body
@@ -224,8 +217,15 @@ main() {
 
     # --- 7. 相机卸载后：后台静默转换实况照片（失败不播报）---
     if [ "${AUTO_CONVERT:-1}" = "1" ] && [ -x /usr/local/bin/dji-livephoto-convert.sh ]; then
-      nohup /usr/local/bin/dji-livephoto-convert.sh --all >> /dev/null 2>&1 200>&- &
-      log "已启动后台实况照片转换 (PID $!)"
+      # 必须用 systemd 启动独立服务，不能 nohup 后台跑：
+      # 本服务是 oneshot + KillMode=control-group，退出时会把同 cgroup 的子进程全部杀掉
+      if systemctl start --no-block dji-livephoto-scan.service 2>/dev/null; then
+        log "已触发实况照片转换服务 (dji-livephoto-scan.service)"
+      else
+        # 兜底：systemd 不可用时直接后台跑
+        nohup /usr/local/bin/dji-livephoto-convert.sh --all >> /dev/null 2>&1 200>&- &
+        log "已启动后台实况照片转换 (PID $!)"
+      fi
     fi
   else
     log "卸载失败: $CAM_MOUNT"
