@@ -35,11 +35,6 @@ FORCE_LIST="$NAS_MOUNT/.livephoto-force.txt"
 
 [ -f "$CONF" ] && . "$CONF"
 
-# 配置可能改了 NAS_MOUNT，依赖它的路径要重新算
-MANIFEST="$NAS_MOUNT/.dji-manifest.tsv"
-SKIP_LIST="$NAS_MOUNT/.livephoto-skip.txt"
-FORCE_LIST="$NAS_MOUNT/.livephoto-force.txt"
-
 # ============ 参数 ============
 MODE="all"
 DRY=0
@@ -138,12 +133,51 @@ build_product() {
   base=$(basename "$src")
   cover="/tmp/djilp.cover.$$.jpg"
 
-  # ① 提封面
+  # ① 提封面：直接取原始分辨率帧（ffmpeg 自动应用旋转元数据）
+  #    绝不强改宽高比 —— 否则竖排视频会被拉扁，播放时还会出现左右黑边
   if ! ffmpeg -y -loglevel error -ss "$LIVEPHOTO_KEYFRAME_TS" -i "$src" \
-        -frames:v 1 -vf "scale=${LIVEPHOTO_COVER_W}:${LIVEPHOTO_COVER_H}:flags=lanczos" \
-        -q:v "$LIVEPHOTO_JPEG_Q" "$cover" 2>>"$LOG"; then
+        -frames:v 1 -q:v "$LIVEPHOTO_JPEG_Q" "$cover" 2>>"$LOG"; then
     log "  ✗ 提封面失败: $base"
     rm -f "$cover"; return 1
+  fi
+
+  # 如果帧超过「长边上限」，等比缩小（force_original_aspect_ratio 保证不变形）
+  local maxedge="$LIVEPHOTO_COVER_W" cwh cw ch
+  [ "${LIVEPHOTO_COVER_H:-0}" -gt "$maxedge" ] 2>/dev/null && maxedge="$LIVEPHOTO_COVER_H"
+  cwh=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$cover" 2>/dev/null)
+  cw="${cwh%,*}"; ch="${cwh#*,}"
+  if [ -n "${cw:-}" ] && [ -n "${ch:-}" ] && \
+     { [ "${cw:-0}" -gt "$maxedge" ] 2>/dev/null || [ "${ch:-0}" -gt "$maxedge" ] 2>/dev/null; }; then
+    if ! ffmpeg -y -loglevel error -i "$cover" \
+          -vf "scale=${maxedge}:${maxedge}:force_original_aspect_ratio=decrease:flags=lanczos:force_divisible_by=2" \
+          -q:v "$LIVEPHOTO_JPEG_Q" "$cover.tmp" 2>>"$LOG"; then
+      log "  ✗ 封面缩放失败: $base"
+      rm -f "$cover" "$cover.tmp"; return 1
+    fi
+    mv "$cover.tmp" "$cover"
+  fi
+
+  # 兜底校验：封面宽高比必须与视频一致（误差 < 2%），否则判失败
+  local vwh vw vh cw2 ch2
+  vwh=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$src" 2>/dev/null)
+  vw="${vwh%,*}"; vh="${vwh#*,}"
+  cwh=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$cover" 2>/dev/null)
+  cw2="${cwh%,*}"; ch2="${cwh#*,}"
+  if [ -n "${vw:-}" ] && [ -n "${vh:-}" ] && [ -n "${cw2:-}" ] && [ -n "${ch2:-}" ] \
+     && [ "$vh" -gt 0 ] 2>/dev/null && [ "$ch2" -gt 0 ] 2>/dev/null; then
+    # 注意：视频可能带旋转元数据，比较时把两种方向都试一遍
+    if ! awk -v a="$vw" -v b="$vh" -v c="$cw2" -v d="$ch2" 'BEGIN{
+          r1=a/b; r2=c/d;
+          if (r1<=0 || r2<=0) exit 0;
+          k = (r1>r2)? r1/r2 : r2/r1;
+          if (k < 1.02) exit 0;
+          # 允许 90 度旋转的情况
+          r3=d/c; k2 = (r1>r3)? r1/r3 : r3/r1;
+          exit !(k2 < 1.02)
+        }'; then
+      log "  ✗ 封面宽高比与视频不符（视频 ${vw}x${vh}，封面 ${cw2}x${ch2}），中止: $base"
+      rm -f "$cover"; return 1
+    fi
   fi
 
   # ② 拼接（封面 + 原片，视频零改动）
